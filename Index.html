@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>THE TRANSFINITE MONOLITH // VOLUME 02</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: #010403;
+            color: #50fa7b;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 15px;
+            overflow-x: hidden;
+            transition: color 0.4s ease;
+        }
+        .terminal {
+            background: #030806;
+            border: 1px solid #50fa7b;
+            box-shadow: 0 0 25px rgba(80, 250, 123, 0.15);
+            padding: 25px;
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+            border-radius: 4px;
+            position: relative;
+        }
+        .header-tag { font-size: 0.72rem; letter-spacing: 2px; color: #718096; margin-bottom: 5px; }
+        h1, h2 { font-size: 1.05rem; margin-bottom: 15px; border-bottom: 1px dashed currentColor; padding-bottom: 8px; }
+        p { font-size: 0.85rem; line-height: 1.6; margin-bottom: 15px; }
+        .quote { font-style: italic; opacity: 0.75; font-size: 0.8rem; }
+        input[type="text"] {
+            width: 100%;
+            background: #000;
+            border: 1px solid currentColor;
+            color: #fff;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 0.95rem;
+            margin: 12px 0;
+            outline: none;
+            text-align: center;
+        }
+        button, .btn {
+            width: 100%;
+            background: #50fa7b;
+            color: #000;
+            border: none;
+            padding: 12px;
+            font-weight: bold;
+            font-family: monospace;
+            cursor: pointer;
+            font-size: 0.95rem;
+            display: inline-block;
+            text-decoration: none;
+            letter-spacing: 1px;
+            user-select: none;
+        }
+        button:active, .btn:active { transform: scale(0.98); opacity: 0.85; }
+        #log { margin-top: 15px; font-size: 0.85rem; min-height: 25px; line-height: 1.4; }
+        .hidden { display: none !important; }
+        #canvas-box { position: relative; width: 100%; height: 260px; margin: 15px 0; }
+        canvas { width: 100%; height: 100%; display: block; border-radius: 3px; }
+        .meta-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: #555;
+            margin-top: 15px;
+            border-top: 1px solid #222;
+            padding-top: 8px;
+        }
+        .glitch-lock { border-color: #ff0055 !important; color: #ff0055 !important; box-shadow: 0 0 40px rgba(255, 0, 85, 0.5) !important; }
+        .whiteout { background: #fff !important; color: #000 !important; box-shadow: 0 0 60px #50fa7b !important; }
+    </style>
+</head>
+<body>
+
+    <div class="terminal" id="terminal-box">
+        <div class="header-tag" id="epoch-tag">SECTOR 01 // CANTOR'S PARADISE</div>
+        <h1 id="tier-title">[ TIER 001 // CANTOR_ANTI_DIAGONAL ]</h1>
+        
+        <div id="canvas-box"><canvas id="main-canvas"></canvas></div>
+
+        <p id="task-desc">The infinite list claims to contain all reals in (0, 1).<br>Invert the diagonal: <code>b<sub>n</sub> = 1 - d<sub>n,n</sub></code>.</p>
+        <p id="sub-desc" class="quote">"Construct the entity that cannot exist within any countable enumeration."</p>
+
+        <form id="master-form" onsubmit="return false;">
+            <input type="text" id="pass-input" placeholder="Awaiting transfinite proof..." autocomplete="off">
+            <button type="button" id="submit-btn">PROVE CARDINALITY</button>
+        </form>
+
+        <div id="log"></div>
+
+        <div class="meta-info">
+            <span id="tier-counter">TIER: 001 / 142</span>
+            <span id="strikes-tag">ATTEMPTS: 3 / 3</span>
+            <span>VOLUME 02 // TRANSFINITE</span>
+        </div>
+    </div>
+
+    <script src="database_v2.js"></script>
+
+    <script>
+        let currentTier = 1;
+        let strikes = parseInt(localStorage.getItem('__v2_strikes') || "3");
+        let isLocked = false;
+        let lockTimer = null;
+        let canvasAnimId = null;
+
+        const terminalBox = document.getElementById('terminal-box');
+        const epochTag = document.getElementById('epoch-tag');
+        const tierTitle = document.getElementById('tier-title');
+        const taskDesc = document.getElementById('task-desc');
+        const subDesc = document.getElementById('sub-desc');
+        const passInput = document.getElementById('pass-input');
+        const submitBtn = document.getElementById('submit-btn');
+        const log = document.getElementById('log');
+        const tierCounter = document.getElementById('tier-counter');
+        const strikesTag = document.getElementById('strikes-tag');
+        const canvas = document.getElementById('main-canvas');
+        const ctx = canvas.getContext('2d');
+
+        function checkPersistentLock() {
+            const lockUntil = parseInt(localStorage.getItem('__v2_lock_until') || "0");
+            const now = Date.now();
+            if (lockUntil > now) {
+                const remainingSecs = Math.ceil((lockUntil - now) / 1000);
+                triggerLockout("PERSISTENT DECOHERENCE ACTIVE. NO ESCAPE VIA RELOAD.", remainingSecs);
+                return true;
+            } else {
+                localStorage.removeItem('__v2_lock_until');
+                return false;
+            }
+        }
+
+        async function sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        function loadTier(tNum) {
+            if (checkPersistentLock()) return;
+            currentTier = tNum;
+            tierCounter.innerText = `TIER: ${String(tNum).padStart(3, '0')} / 142`;
+            strikesTag.innerText = `ATTEMPTS: ${strikes} / 3`;
+
+            if (tNum > 142) return;
+            const t = window.MASTER_V2[tNum];
+            if (!t) return;
+
+            document.body.style.color = t[4];
+            terminalBox.style.borderColor = t[4];
+            terminalBox.style.boxShadow = `0 0 30px ${t[4]}33`;
+            submitBtn.style.background = t[4];
+            submitBtn.style.color = "#000";
+
+            epochTag.innerText = t[0];
+            tierTitle.innerHTML = t[1];
+            taskDesc.innerHTML = t[2];
+            subDesc.innerHTML = t[3];
+            submitBtn.innerText = t[5] || "TRANSMIT PROOF";
+            passInput.value = "";
+            log.innerHTML = "";
+        }
+
+        async function handleValidation() {
+            if (isLocked || checkPersistentLock()) return;
+            const rawVal = passInput.value.trim().toUpperCase();
+            const hashedInput = await sha256(rawVal);
+            const t = window.MASTER_V2[currentTier];
+            if (!t) return;
+
+            // HONEYPOTS
+            const HONEYPOTS = ["PASSWORD", "ADMIN", "INFINITY", "ALEPH", "OMEGA", "TEST"];
+            if (HONEYPOTS.includes(rawVal)) {
+                strikes = 0;
+                localStorage.setItem('__v2_strikes', "0");
+                triggerLockout("HONEYPOT TRIGGERED. TRANSFINITE RECURSION CORRUPTED.", 300);
+                return;
+            }
+
+            if (t[6].includes(hashedInput)) {
+                strikes = 3;
+                localStorage.setItem('__v2_strikes', "3");
+                localStorage.removeItem('__v2_lock_until');
+
+                if (currentTier === 142) {
+                    if (canvasAnimId) cancelAnimationFrame(canvasAnimId);
+                    document.body.classList.add('whiteout');
+                    terminalBox.innerHTML = `
+                        <h1 style="color:#000; font-size:1.3rem;">[ VOLUME 02 CONQUERED ]</h1>
+                        <p style="color:#000; font-size:1rem; margin:20px 0;">
+                            <b>ALL 142 TRANSFINITE SECTORS ANNIHILATED.</b><br>
+                            The infinite ordinal hierarchy has collapsed into the second seed.
+                        </p>
+                        <div style="background:#000; color:#50fa7b; padding:20px; font-size:1.2rem; font-weight:bold; letter-spacing:4px; margin:20px 0; border:2px solid #50fa7b;">
+                            REVEALED FRAGMENT: "TRANSFINITE"<br>
+                            <span style="font-size:0.75rem; color:#888;">[POSITION: 13 / 14]</span>
+                        </div>
+                        <p style="color:#333; font-size:0.8rem;">
+                            Harvest the 13th word.<br>
+                            Prepare for Volume 03: 155 Tiers of Gödelian Automata.
+                        </p>
+                    `;
+                    return;
+                }
+
+                log.style.color = "#50fa7b";
+                log.innerText = `[PROVEN]: Tier ${currentTier} Cleared. Advancing...`;
+                setTimeout(() => { loadTier(currentTier + 1); }, 350);
+            } else {
+                strikes--;
+                localStorage.setItem('__v2_strikes', String(strikes));
+                strikesTag.innerText = `ATTEMPTS: ${strikes} / 3`;
+                if (strikes <= 0) {
+                    triggerLockout("CARDINAL PARADOX: 3 STRIKES REACHED. LOCKDOWN ENGAGED.", 300);
+                } else {
+                    log.style.color = "#ff3333";
+                    log.innerText = `[REJECTED]: Formal proof invalid. ${strikes} attempts remaining.`;
+                }
+            }
+        }
+
+        submitBtn.addEventListener('click', handleValidation);
+        document.getElementById('master-form').addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); handleValidation(); }
+        });
+
+        function triggerLockout(reason, durationSeconds) {
+            isLocked = true;
+            terminalBox.classList.add('glitch-lock');
+            const now = Date.now();
+            let lockUntil = parseInt(localStorage.getItem('__v2_lock_until') || "0");
+            if (lockUntil <= now) {
+                lockUntil = now + (durationSeconds * 1000);
+                localStorage.setItem('__v2_lock_until', String(lockUntil));
+            }
+            if (lockTimer) clearInterval(lockTimer);
+            lockTimer = setInterval(() => {
+                const currentNow = Date.now();
+                const remaining = Math.max(0, Math.ceil((lockUntil - currentNow) / 1000));
+                log.style.color = "#ff0055";
+                log.innerHTML = `<b>[SYSTEM LOCKED]</b><br>${reason}<br>COOLDOWN: ${remaining}s`;
+                if (remaining <= 0) {
+                    clearInterval(lockTimer);
+                    isLocked = false;
+                    strikes = 3;
+                    localStorage.setItem('__v2_strikes', "3");
+                    localStorage.removeItem('__v2_lock_until');
+                    terminalBox.classList.remove('glitch-lock');
+                    loadTier(1);
+                }
+            }, 1000);
+        }
+
+        // ХОЛСТ ТРАНСФИНИТНОГО ДРЕВА КАНТОРА
+        function initCantorCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            let t = 0;
+            function render() {
+                t += 0.015;
+                ctx.fillStyle = '#030806';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                const cx = canvas.width / 2, cy = canvas.height - 20;
+
+                function drawBranch(x, y, len, angle, depth) {
+                    if (depth <= 0) return;
+                    const x2 = x + Math.cos(angle) * len;
+                    const y2 = y - Math.sin(angle) * len;
+                    ctx.strokeStyle = `hsla(${120 + depth * 30 + Math.sin(t) * 20}, 90%, 60%, ${0.2 + depth * 0.15})`;
+                    ctx.lineWidth = depth * 0.8;
+                    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y2); ctx.stroke();
+                    drawBranch(x2, y2, len * 0.72, angle - 0.45 + Math.sin(t * 0.8 + depth) * 0.08, depth - 1);
+                    drawBranch(x2, y2, len * 0.72, angle + 0.45 + Math.cos(t * 0.8 + depth) * 0.08, depth - 1);
+                }
+                drawBranch(cx, cy, canvas.height * 0.28, Math.PI / 2, 7);
+                canvasAnimId = requestAnimationFrame(render);
+            }
+            render();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initCantorCanvas();
+            if (!checkPersistentLock() && window.MASTER_V2) loadTier(1);
+        });
+    </script>
+</body>
+</html>
