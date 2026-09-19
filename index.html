@@ -99,7 +99,7 @@
         <div class="meta-info">
             <span id="tier-counter">TIER: 001 / 142</span>
             <span id="strikes-tag">ATTEMPTS: 3 / 3</span>
-            <span>VOLUME 02 // TRANSFINITE</span>
+            <span>VOLUME 02 // SHA-256 SEALED</span>
         </div>
     </div>
 
@@ -125,6 +125,12 @@
         const canvas = document.getElementById('main-canvas');
         const ctx = canvas.getContext('2d');
 
+        async function sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message.trim().toUpperCase());
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
         function checkPersistentLock() {
             const lockUntil = parseInt(localStorage.getItem('__v2_lock_until') || "0");
             const now = Date.now();
@@ -136,13 +142,6 @@
                 localStorage.removeItem('__v2_lock_until');
                 return false;
             }
-        }
-
-        async function sha256(message) {
-            const msgBuffer = new TextEncoder().encode(message);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
         function loadTier(tNum) {
@@ -173,11 +172,9 @@
         async function handleValidation() {
             if (isLocked || checkPersistentLock()) return;
             const rawVal = passInput.value.trim().toUpperCase();
-            const hashedInput = await sha256(rawVal);
             const t = window.MASTER_V2[currentTier];
             if (!t) return;
 
-            // HONEYPOTS
             const HONEYPOTS = ["PASSWORD", "ADMIN", "INFINITY", "ALEPH", "OMEGA", "TEST"];
             if (HONEYPOTS.includes(rawVal)) {
                 strikes = 0;
@@ -186,7 +183,10 @@
                 return;
             }
 
-            if (t[6].includes(hashedInput)) {
+            const inputHash = await sha256(rawVal);
+            let correct = t[6].includes(inputHash);
+
+            if (correct) {
                 strikes = 3;
                 localStorage.setItem('__v2_strikes', "3");
                 localStorage.removeItem('__v2_lock_until');
@@ -260,7 +260,6 @@
             }, 1000);
         }
 
-        // ХОЛСТ ТРАНСФИНИТНОГО ДРЕВА КАНТОРА
         function initCantorCanvas() {
             canvas.width = canvas.parentElement.clientWidth;
             canvas.height = canvas.parentElement.clientHeight;
@@ -287,9 +286,18 @@
             render();
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('MASTER_V2_READY', () => {
             initCantorCanvas();
-            if (!checkPersistentLock() && window.MASTER_V2) loadTier(1);
+            if (!checkPersistentLock()) loadTier(1);
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                if (window.MASTER_V2 && window.MASTER_V2[1]) {
+                    initCantorCanvas();
+                    if (!checkPersistentLock()) loadTier(1);
+                }
+            }, 250);
         });
     </script>
 </body>
